@@ -5,107 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kantor AI Clipper - Konten.com</title>
   <style>
-    body { margin: 0; background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    #header { padding: 12px 20px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
-    .badge { padding: 6px 12px; border-radius: 999px; font-weight: bold; font-size: 13px; background: #3b82f6; color: white; }
-    #canvas-container { flex: 1; position: relative; }
-    #status-bar { padding: 14px 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+    #header { padding: 14px 20px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+    .badge { padding: 6px 14px; border-radius: 999px; font-weight: bold; font-size: 13px; background: #3b82f6; color: white; }
+    #office-floor { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 20px; align-content: center; max-width: 720px; margin: 0 auto; width: 100%; }
+    .desk { background: #1e293b; border: 2px solid #334155; border-radius: 16px; padding: 20px; text-align: center; transition: all 0.3s; }
+    .desk.active { border-color: #10b981; background: #064e3b; transform: translateY(-6px); box-shadow: 0 10px 25px rgba(16,185,129,0.3); }
+    .avatar { font-size: 42px; margin-bottom: 8px; display: inline-block; }
+    .desk.active .avatar { animation: bounce 0.6s infinite alternate; }
+    @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+    .role { font-weight: bold; font-size: 16px; margin-bottom: 4px; }
+    .desc { font-size: 12px; color: #94a3b8; }
+    #status-bar { padding: 16px 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
     .btn { background: #10b981; color: #064e3b; font-weight: bold; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
   <div id="header">
     <div><strong>🏢 KANTOR AI CLIPPER</strong> <span style="color:#94a3b8;font-size:13px;">(Konten.com Edition)</span></div>
     <div id="status-badge" class="badge">STATUS: STANDBY</div>
   </div>
-  <div id="canvas-container"></div>
+
+  <div id="office-floor">
+    <div id="desk-RISET" class="desk">
+      <div class="avatar">🕵️‍♂️</div>
+      <div class="role">Agen Riset</div>
+      <div class="desc">Cek perintah Telegram & brief</div>
+    </div>
+    <div id="desk-PRODUKSI" class="desk">
+      <div class="avatar">🎬</div>
+      <div class="role">Agen Clipper</div>
+      <div class="desc">Unduh materi & potong vertikal</div>
+    </div>
+    <div id="desk-QC" class="desk">
+      <div class="avatar">🧐</div>
+      <div class="role">Agen QC</div>
+      <div class="desc">Seleksi aturan & larangan</div>
+    </div>
+    <div id="desk-POSTING" class="desk">
+      <div class="avatar">🚀</div>
+      <div class="role">Agen Kurir</div>
+      <div class="desc">Kirim hasil klip ke Telegram</div>
+    </div>
+  </div>
+
   <div id="status-bar">
-    <div id="status-text">Memuat aktivitas agen kantor...</div>
-    <a id="edit-btn" href="#" target="_blank" class="btn">✏️ Edit Syarat Konten.com Hari Ini</a>
+    <div id="status-text">Menghubungkan ke server kantor...</div>
+    <a href="https://github.com/DUBIDAMSS/Kantor-clipper-imawans-v2/actions" target="_blank" class="btn">⚙️ Buka Log Actions</a>
   </div>
 
   <script>
-    const hostParts = window.location.hostname.split('.');
-    const repoPath = window.location.pathname.split('/')[1] || 'Kantor-clipper-imawans-v2';
-    if (hostParts[0]) {
-      document.getElementById('edit-btn').href = `https://github.com/${hostParts[0]}/${repoPath}/edit/main/syarat_harian.txt`;
-    }
-
-    const container = document.getElementById('canvas-container');
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(10, 10, 10);
-    camera.lookAt(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(10, 20, 10);
-    scene.add(dirLight);
-
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
-    scene.add(floor);
-
-    function buatMejaAgen(x, z, warnaAgen) {
-      const meja = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 1.2), new THREE.MeshStandardMaterial({ color: 0x475569 }));
-      meja.position.set(x, 0.6, z);
-      scene.add(meja);
-
-      const agen = new THREE.Group();
-      const badan = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.1, 16), new THREE.MeshStandardMaterial({ color: warnaAgen }));
-      badan.position.y = 1.1;
-      const kepala = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshStandardMaterial({ color: 0xfde047 }));
-      kepala.position.y = 1.95;
-      agen.add(badan, kepala);
-      agen.position.set(x, 0, z + 0.9);
-      scene.add(agen);
-      return agen;
-    }
-
-    const agenRiset = buatMejaAgen(-2.8, -2.5, 0x38bdf8);
-    const agenClipper = buatMejaAgen(2.8, -2.5, 0xf43f5e);
-    const agenQC = buatMejaAgen(-2.8, 2.2, 0xa855f7);
-    const agenKurir = buatMejaAgen(2.8, 2.2, 0x10b981);
-
-    let tahapAktif = "IDLE";
-
-    async function cekStatusKantor() {
+    async function cekStatus() {
       try {
-        const res = await fetch('status_kantor.json?t=' + Date.now());
+        const res = await fetch('https://raw.githubusercontent.com/DUBIDAMSS/Kantor-clipper-imawans-v2/main/status_kantor.json?t=' + Date.now());
         const data = await res.json();
-        tahapAktif = data.tahap;
         document.getElementById('status-badge').innerText = "STATUS: " + data.tahap;
         document.getElementById('status-text').innerText = data.pesan + " (" + data.waktu + ")";
-      } catch (e) {}
+        document.querySelectorAll('.desk').forEach(d => d.classList.remove('active'));
+        const aktif = document.getElementById('desk-' + data.tahap);
+        if (aktif) aktif.classList.add('active');
+      } catch (e) {
+        document.getElementById('status-text').innerText = "Belum ada aktivitas terbaru (status_kantor.json belum dibuat).";
+      }
     }
-    setInterval(cekStatusKantor, 5000);
-    cekStatusKantor();
-
-    let clock = new THREE.Clock();
-    function animate() {
-      requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
-      agenRiset.position.y = (tahapAktif === "RISET") ? Math.abs(Math.sin(t * 8)) * 0.4 : 0;
-      agenClipper.position.y = (tahapAktif === "PRODUKSI") ? Math.abs(Math.sin(t * 10)) * 0.4 : 0;
-      agenQC.position.y = (tahapAktif === "QC") ? Math.abs(Math.sin(t * 8)) * 0.4 : 0;
-      agenKurir.position.y = (tahapAktif === "POSTING") ? Math.abs(Math.sin(t * 10)) * 0.4 : 0;
-      [agenRiset, agenClipper, agenQC, agenKurir].forEach((a, i) => {
-        a.rotation.y = Math.sin(t * 1.5 + i) * 0.2;
-      });
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener('resize', () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
-    });
+    setInterval(cekStatus, 4000);
+    cekStatus();
   </script>
 </body>
 </html>
