@@ -20,6 +20,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Siapkan Node.js untuk yt-dlp
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Instal FFmpeg & AI Tools
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
