@@ -1,0 +1,7 @@
+LINK_YOUTUBE: https://www.youtube.com/watch?v=ISI_LINK_DARI_KONTEN_COM
+DURASI_MINIMAL: 20
+DURASI_MAKSIMAL: 55
+TOPIK_DICARI: Momen paling menarik, edukatif, atau punchline lucu sesuai campaign.
+LARANGAN: Jangan potong bagian sponsor atau kata-kata kasar.
+HASHTAG_WAJIB: #KontenCom #NamaBrand
+MENTION_WAJIB: @akunbrand
