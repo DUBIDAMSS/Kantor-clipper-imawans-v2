@@ -69,7 +69,13 @@ update_visual("PRODUKSI", "Agen Clipper sedang mengunduh video materi...")
 os.makedirs("output_klip", exist_ok=True)
 
 yt_cookies = os.environ.get("YT_COOKIES", "").strip()
-yt_cmd = ["yt-dlp", "-f", "best[ext=mp4]/best", "-o", "source_video.mp4"]
+yt_cmd = [
+    "yt-dlp",
+    "--geo-bypass-country", "ID",
+    "--extractor-args", "youtube:player_client=web",
+    "-f", "best[ext=mp4]/best",
+    "-o", "source_video.mp4"
+]
 if yt_cookies:
     with open("cookies.txt", "w") as cf:
         cf.write(yt_cookies)
