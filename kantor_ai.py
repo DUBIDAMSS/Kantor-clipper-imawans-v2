@@ -78,7 +78,13 @@ link_yt = urls[0]
 
 update_visual("PRODUKSI", "Agen Clipper sedang mengunduh video materi...")
 os.makedirs("output_klip", exist_ok=True)
-subprocess.run(["yt-dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", "source_video.mp4", link_yt], check=True)
+subprocess.run([
+    "yt-dlp",
+    "--extractor-args", "youtube:player_client=android,ios",
+    "-f", "best[ext=mp4]/best",
+    "-o", "source_video.mp4",
+    link_yt
+], check=True)
 
 update_visual("QC", "Agen QC memeriksa durasi, larangan, & syarat Konten.com...")
 video_file = client.files.upload(file="source_video.mp4")
