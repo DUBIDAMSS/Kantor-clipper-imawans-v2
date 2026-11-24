@@ -2,10 +2,7 @@ name: Kantor AI Clipper Otomatis
 
 on:
   schedule:
-    - cron: '0 1 * * *'
-  push:
-    paths:
-      - 'syarat_harian.txt'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
