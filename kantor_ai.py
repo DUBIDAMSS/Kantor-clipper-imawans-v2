@@ -1,10 +1,10 @@
-import os, json, subprocess, time, requests
+import os, json, subprocess, time, requests, re
 from datetime import datetime, timezone, timedelta
 from google import genai
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 TG_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+TG_CHAT_ID = str(os.environ.get("TELEGRAM_CHAT_ID"))
 
 def update_visual(tahap, pesan):
     wita = datetime.now(timezone(timedelta(hours=8))).strftime("%H:%M WITA")
@@ -12,29 +12,63 @@ def update_visual(tahap, pesan):
         json.dump({"tahap": tahap, "pesan": pesan, "waktu": wita}, f)
     subprocess.run(["git", "config", "user.name", "Kantor AI Bot"])
     subprocess.run(["git", "config", "user.email", "bot@kantorai.local"])
-    subprocess.run(["git", "add", "status_kantor.json"])
-    subprocess.run(["git", "commit", "-m", f"Update visual: {tahap}"])
+    subprocess.run(["git", "add", "status_kantor.json", "syarat_harian.txt"])
+    subprocess.run(["git", "commit", "-m", f"Update via Telegram: {tahap}"])
     subprocess.run(["git", "push"])
 
-def kirim_telegram(video_path, caption):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendVideo"
+def kirim_teks(teks):
+    requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", data={"chat_id": TG_CHAT_ID, "text": teks})
+
+def kirim_video(video_path, caption):
     with open(video_path, "rb") as vf:
-        requests.post(url, data={"chat_id": TG_CHAT_ID, "caption": caption}, files={"video": vf})
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendVideo", data={"chat_id": TG_CHAT_ID, "caption": caption}, files={"video": vf})
 
-update_visual("RISET", "Agen Riset sedang membaca syarat campaign Konten.com...")
-with open("syarat_harian.txt", "r") as f:
-    syarat = f.read()
+def cek_perintah_telegram():
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/getUpdates"
+    res = requests.get(url).json()
+    if not res.get("ok") or not res.get("result"):
+        return None
+    
+    pesan_terbaru = None
+    update_id_terakhir = 0
+    for item in res["result"]:
+        update_id_terakhir = item["update_id"]
+        msg = item.get("message", {})
+        if str(msg.get("chat", {}).get("id")) == TG_CHAT_ID and "text" in msg:
+            if "http" in msg["text"]:
+                pesan_terbaru = msg["text"]
+    
+    if update_id_terakhir > 0:
+        requests.get(f"{url}?offset={update_id_terakhir + 1}")
+    return pesan_terbaru
 
-link_yt = [line.split(": ", 1)[1].strip() for line in syarat.splitlines() if line.startswith("LINK_YOUTUBE:")][0]
-if "ISI_LINK" in link_yt or not link_yt.startswith("http"):
-    update_visual("IDLE", "Menunggu link YouTube baru di syarat_harian.txt")
+update_visual("RISET", "Agen Riset memeriksa perintah terbaru di chat Telegram...")
+perintah_tg = cek_perintah_telegram()
+
+if perintah_tg:
+    with open("syarat_harian.txt", "w") as f:
+        f.write(perintah_tg)
+    syarat = perintah_tg
+    kirim_teks("✅ Perintah baru dari Telegram diterima! Tim Kantor AI mulai memproses video...")
+else:
+    with open("syarat_harian.txt", "r") as f:
+        syarat = f.read()
+
+if "http" not in syarat or "ISI_LINK" in syarat:
+    update_visual("IDLE", "Menunggu perintah & link YouTube dikirim lewat chat Telegram...")
     exit(0)
 
-update_visual("PRODUKSI", "Agen Clipper sedang mengunduh & memotong video materi...")
+urls = re.findall(r'(https?://[^\s]+)', syarat)
+if not urls:
+    update_visual("IDLE", "Link YouTube tidak ditemukan di pesan Telegram.")
+    exit(0)
+link_yt = urls[0]
+
+update_visual("PRODUKSI", "Agen Clipper sedang mengunduh video materi...")
 os.makedirs("output_klip", exist_ok=True)
 subprocess.run(["yt-dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", "source_video.mp4", link_yt], check=True)
 
-update_visual("QC", "Agen QC memeriksa durasi, larangan, & kecocokan syarat Konten.com...")
+update_visual("QC", "Agen QC memeriksa durasi, larangan, & syarat Konten.com...")
 video_file = client.files.upload(file="source_video.mp4")
 while video_file.state.name == "PROCESSING":
     time.sleep(5)
@@ -42,11 +76,12 @@ while video_file.state.name == "PROCESSING":
 
 prompt = f"""
 Kamu adalah Tim Riset, Produksi, dan Quality Control (QC) Kantor AI Clipper untuk platform Konten.com.
-Syarat campaign harian:
+Berikut instruksi & syarat campaign harian yang dikirim bos lewat Telegram:
 {syarat}
 
-Pilih maksimal 3 segmen terbaik yang LOLOS QC (durasi wajib di antara DURASI_MINIMAL dan DURASI_MAKSIMAL, sesuai TOPIK_DICARI, dan bebas LARANGAN).
-Tulis caption Instagram Reels menarik yang wajib menyertakan MENTION_WAJIB dan HASHTAG_WAJIB.
+Tugasmu:
+1. Analisis video ini dan pilih maksimal 3 segmen terbaik yang LOLOS QC (mematuhi durasi, topik, dan larangan yang diminta). Jika durasi tidak disebut, gunakan standar 20-55 detik.
+2. Tulis caption Instagram Reels menarik yang menyertakan mention dan hashtag wajib yang diminta.
 
 Berikan jawaban HANYA dalam format JSON array valid tanpa teks tambahan:
 [
@@ -91,6 +126,6 @@ for idx, klip in enumerate(klip_list, 1):
         os.remove(raw_cut)
 
     update_visual("POSTING", f"Agen Kurir mengirim klip {idx} lolos QC ke Telegram...")
-    kirim_telegram(out_mp4, klip["caption_ig"])
+    kirim_video(out_mp4, klip["caption_ig"])
 
 update_visual("IDLE", "Selesai! Semua klip sudah dikirim ke Telegram. Agen kembali istirahat.")
