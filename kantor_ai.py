@@ -3,8 +3,8 @@ from datetime import datetime, timezone, timedelta
 from google import genai
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-TG_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TG_CHAT_ID = str(os.environ.get("TELEGRAM_CHAT_ID"))
+TG_TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
+TG_CHAT_ID = str(os.environ.get("TELEGRAM_CHAT_ID", "")).strip()
 
 def update_visual(tahap, pesan):
     wita = datetime.now(timezone(timedelta(hours=8))).strftime("%H:%M WITA")
@@ -26,7 +26,14 @@ def kirim_video(video_path, caption):
 def cek_perintah_telegram():
     url = f"https://api.telegram.org/bot{TG_TOKEN}/getUpdates"
     res = requests.get(url).json()
-    if not res.get("ok") or not res.get("result"):
+    print("DEBUG TELEGRAM RESPONSE:", json.dumps(res))
+    
+    if not res.get("ok"):
+        print("ERROR TOKEN TELEGRAM:", res)
+        return None
+    
+    if not res.get("result"):
+        kirim_teks("ℹ️ Server mengecek Telegram, tapi antrean pesan baru kosong. Kirim link YouTube sekarang lalu Run Workflow lagi.")
         return None
     
     pesan_terbaru = None
@@ -34,9 +41,14 @@ def cek_perintah_telegram():
     for item in res["result"]:
         update_id_terakhir = item["update_id"]
         msg = item.get("message", {})
-        if str(msg.get("chat", {}).get("id")) == TG_CHAT_ID and "text" in msg:
-            if "http" in msg["text"]:
-                pesan_terbaru = msg["text"]
+        pengirim_id = str(msg.get("chat", {}).get("id", ""))
+        teks_msg = msg.get("text", "")
+        print(f"Pesan dari ID {pengirim_id}: {teks_msg}")
+        
+        if pengirim_id == TG_CHAT_ID and "http" in teks_msg:
+            pesan_terbaru = teks_msg
+        elif pengirim_id != TG_CHAT_ID and pengirim_id != "":
+            print(f"PERINGATAN: ID pengirim ({pengirim_id}) beda dengan Secret TELEGRAM_CHAT_ID ({TG_CHAT_ID})")
     
     if update_id_terakhir > 0:
         requests.get(f"{url}?offset={update_id_terakhir + 1}")
@@ -81,7 +93,7 @@ Berikut instruksi & syarat campaign harian yang dikirim bos lewat Telegram:
 
 Tugasmu:
 1. Analisis video ini dan pilih maksimal 3 segmen terbaik yang LOLOS QC (mematuhi durasi, topik, dan larangan yang diminta). Jika durasi tidak disebut, gunakan standar 20-55 detik.
-2. Tulis caption Instagram Reels menarik yang menyertakan mention dan hashtag wajib yang diminta.
+2. Tulis caption menarik yang menyertakan mention dan hashtag wajib yang diminta (jika ada).
 
 Berikan jawaban HANYA dalam format JSON array valid tanpa teks tambahan:
 [
@@ -89,7 +101,7 @@ Berikan jawaban HANYA dalam format JSON array valid tanpa teks tambahan:
     "judul": "nama_klip_tanpa_spasi",
     "mulai": "00:01:15",
     "selesai": "00:01:50",
-    "caption_ig": "Teks hook menarik + mention wajib + hashtag wajib"
+    "caption_ig": "Teks hook menarik + mention/hashtag relevan"
   }}
 ]
 """
