@@ -26,14 +26,7 @@ def kirim_video(video_path, caption):
 def cek_perintah_telegram():
     url = f"https://api.telegram.org/bot{TG_TOKEN}/getUpdates"
     res = requests.get(url).json()
-    print("DEBUG TELEGRAM RESPONSE:", json.dumps(res))
-    
-    if not res.get("ok"):
-        print("ERROR TOKEN TELEGRAM:", res)
-        return None
-    
-    if not res.get("result"):
-        kirim_teks("ℹ️ Server mengecek Telegram, tapi antrean pesan baru kosong. Kirim link YouTube sekarang lalu Run Workflow lagi.")
+    if not res.get("ok") or not res.get("result"):
         return None
     
     pesan_terbaru = None
@@ -43,12 +36,8 @@ def cek_perintah_telegram():
         msg = item.get("message", {})
         pengirim_id = str(msg.get("chat", {}).get("id", ""))
         teks_msg = msg.get("text", "")
-        print(f"Pesan dari ID {pengirim_id}: {teks_msg}")
-        
         if pengirim_id == TG_CHAT_ID and "http" in teks_msg:
             pesan_terbaru = teks_msg
-        elif pengirim_id != TG_CHAT_ID and pengirim_id != "":
-            print(f"PERINGATAN: ID pengirim ({pengirim_id}) beda dengan Secret TELEGRAM_CHAT_ID ({TG_CHAT_ID})")
     
     if update_id_terakhir > 0:
         requests.get(f"{url}?offset={update_id_terakhir + 1}")
@@ -78,13 +67,15 @@ link_yt = urls[0]
 
 update_visual("PRODUKSI", "Agen Clipper sedang mengunduh video materi...")
 os.makedirs("output_klip", exist_ok=True)
-subprocess.run([
-    "yt-dlp",
-    "--extractor-args", "youtube:player_client=android,ios",
-    "-f", "best[ext=mp4]/best",
-    "-o", "source_video.mp4",
-    link_yt
-], check=True)
+
+yt_cookies = os.environ.get("YT_COOKIES", "").strip()
+yt_cmd = ["yt-dlp", "-f", "best[ext=mp4]/best", "-o", "source_video.mp4"]
+if yt_cookies:
+    with open("cookies.txt", "w") as cf:
+        cf.write(yt_cookies)
+    yt_cmd.extend(["--cookies", "cookies.txt"])
+yt_cmd.append(link_yt)
+subprocess.run(yt_cmd, check=True)
 
 update_visual("QC", "Agen QC memeriksa durasi, larangan, & syarat Konten.com...")
 video_file = client.files.upload(file="source_video.mp4")
