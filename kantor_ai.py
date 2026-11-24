@@ -72,13 +72,11 @@ yt_cookies = os.environ.get("YT_COOKIES", "").strip()
 yt_cmd = [
     "yt-dlp",
     "--js-runtimes", "node",
-    "--extractor-args", "youtube:player_client=android_vr",
-    "-f", "best[ext=mp4]/best",
-    "-o", "source_video.mp4",
-    link_yt
+    "--extractor-args", "youtube:player_client=tv,mweb",
+    "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+    "--merge-output-format", "mp4",
+    "-o", "source_video.mp4"
 ]
-subprocess.run(yt_cmd, check=True)
-
 if yt_cookies:
     with open("cookies.txt", "w") as cf:
         cf.write(yt_cookies)
