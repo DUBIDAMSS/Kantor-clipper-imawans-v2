@@ -71,9 +71,8 @@ os.makedirs("output_klip", exist_ok=True)
 yt_cookies = os.environ.get("YT_COOKIES", "").strip()
 yt_cmd = [
     "yt-dlp",
-    "--geo-bypass-country", "ID",
-    "--extractor-args", "youtube:player_client=web",
-    "-f", "best[ext=mp4]/best",
+    "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+    "--merge-output-format", "mp4",
     "-o", "source_video.mp4"
 ]
 if yt_cookies:
