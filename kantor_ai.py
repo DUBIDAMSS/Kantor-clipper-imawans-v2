@@ -72,26 +72,36 @@ try:
     tahap_sekarang = "PRODUKSI"
     update_visual("PRODUKSI", "Agen Clipper sedang mengunduh video materi...")
     os.makedirs("output_klip", exist_ok=True)
+    if os.path.exists("source_video.mp4"):
+        os.remove("source_video.mp4")
 
-    yt_cookies = os.environ.get("YT_COOKIES", "").strip()
-    yt_cmd = [
-        "yt-dlp",
-        "--js-runtimes", "node",
-        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "--merge-output-format", "mp4",
-        "-o", "source_video.mp4"
-    ]
-    if yt_cookies and ("youtube.com" in link_video or "youtu.be" in link_video):
-        with open("cookies.txt", "w") as cf:
-            cf.write(yt_cookies)
-        yt_cmd.extend(["--cookies", "cookies.txt"])
-    yt_cmd.append(link_video)
+    if "drive.google.com" in link_video:
+        hasil_unduh = subprocess.run(
+            ["gdown", "--fuzzy", link_video, "-O", "source_video.mp4"],
+            capture_output=True, text=True
+        )
+        if hasil_unduh.returncode != 0 or not os.path.exists("source_video.mp4"):
+            raise RuntimeError(f"Gagal unduh Google Drive (pastikan akses 'Siapa saja yang memiliki link'): {hasil_unduh.stderr[-250:]}")
+    else:
+        yt_cookies = os.environ.get("YT_COOKIES", "").strip()
+        yt_cmd = [
+            "yt-dlp",
+            "--js-runtimes", "node",
+            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "--merge-output-format", "mp4",
+            "-o", "source_video.mp4"
+        ]
+        if yt_cookies and ("youtube.com" in link_video or "youtu.be" in link_video):
+            with open("cookies.txt", "w") as cf:
+                cf.write(yt_cookies)
+            yt_cmd.extend(["--cookies", "cookies.txt"])
+        yt_cmd.append(link_video)
 
-    hasil_unduh = subprocess.run(yt_cmd, capture_output=True, text=True)
-    if hasil_unduh.returncode != 0:
-        baris_err = [b for b in hasil_unduh.stderr.splitlines() if "ERROR:" in b]
-        detail_err = baris_err[-1] if baris_err else hasil_unduh.stderr[-250:]
-        raise RuntimeError(f"Gagal mengunduh video: {detail_err}")
+        hasil_unduh = subprocess.run(yt_cmd, capture_output=True, text=True)
+        if hasil_unduh.returncode != 0:
+            baris_err = [b for b in hasil_unduh.stderr.splitlines() if "ERROR:" in b]
+            detail_err = baris_err[-1] if baris_err else hasil_unduh.stderr[-250:]
+            raise RuntimeError(f"Gagal mengunduh video: {detail_err}")
 
     tahap_sekarang = "QC"
     update_visual("QC", "Agen QC memeriksa durasi, larangan, & syarat Konten.com...")
