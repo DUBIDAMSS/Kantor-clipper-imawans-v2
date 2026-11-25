@@ -8,17 +8,21 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; flex-direction: column; height: 100vh; }
     #header { padding: 14px 20px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
-    .badge { padding: 6px 14px; border-radius: 999px; font-weight: bold; font-size: 13px; background: #3b82f6; color: white; }
+    .badge { padding: 6px 14px; border-radius: 999px; font-weight: bold; font-size: 13px; background: #3b82f6; color: white; transition: background 0.3s; }
+    .badge.error { background: #dc2626; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     #office-floor { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 20px; align-content: center; max-width: 720px; margin: 0 auto; width: 100%; }
     .desk { background: #1e293b; border: 2px solid #334155; border-radius: 16px; padding: 20px; text-align: center; transition: all 0.3s; }
     .desk.active { border-color: #10b981; background: #064e3b; transform: translateY(-6px); box-shadow: 0 10px 25px rgba(16,185,129,0.3); }
+    .desk.failed { border-color: #ef4444; background: #7f1d1d; }
     .avatar { font-size: 42px; margin-bottom: 8px; display: inline-block; }
     .desk.active .avatar { animation: bounce 0.6s infinite alternate; }
     @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
     .role { font-weight: bold; font-size: 16px; margin-bottom: 4px; }
     .desc { font-size: 12px; color: #94a3b8; }
-    #status-bar { padding: 16px 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    .btn { background: #10b981; color: #064e3b; font-weight: bold; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; }
+    #status-bar { padding: 16px 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; transition: background 0.3s; }
+    #status-bar.error-bar { background: #450a0a; border-top-color: #dc2626; color: #fecaca; }
+    .btn { background: #10b981; color: #064e3b; font-weight: bold; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -60,13 +64,34 @@
       try {
         const res = await fetch('https://raw.githubusercontent.com/DUBIDAMSS/Kantor-clipper-imawans-v2/main/status_kantor.json?t=' + Date.now());
         const data = await res.json();
-        document.getElementById('status-badge').innerText = "STATUS: " + data.tahap;
-        document.getElementById('status-text').innerText = data.pesan + " (" + data.waktu + ")";
-        document.querySelectorAll('.desk').forEach(d => d.classList.remove('active'));
-        const aktif = document.getElementById('desk-' + data.tahap);
-        if (aktif) aktif.classList.add('active');
+        const badge = document.getElementById('status-badge');
+        const bar = document.getElementById('status-bar');
+        const text = document.getElementById('status-text');
+
+        document.querySelectorAll('.desk').forEach(d => {
+          d.classList.remove('active', 'failed');
+        });
+
+        if (data.tahap === "ERROR") {
+          badge.innerText = "STATUS: GAGAL";
+          badge.classList.add('error');
+          bar.classList.add('error-bar');
+          text.innerText = "❌ " + data.pesan + " (" + data.waktu + ")";
+          const tahapMatch = data.pesan.match(/tahap (RISET|PRODUKSI|QC|POSTING)/);
+          if (tahapMatch) {
+            const mejaGagal = document.getElementById('desk-' + tahapMatch[1]);
+            if (mejaGagal) mejaGagal.classList.add('failed');
+          }
+        } else {
+          badge.innerText = "STATUS: " + data.tahap;
+          badge.classList.remove('error');
+          bar.classList.remove('error-bar');
+          text.innerText = data.pesan + " (" + data.waktu + ")";
+          const aktif = document.getElementById('desk-' + data.tahap);
+          if (aktif) aktif.classList.add('active');
+        }
       } catch (e) {
-        document.getElementById('status-text').innerText = "Belum ada aktivitas terbaru (status_kantor.json belum dibuat).";
+        document.getElementById('status-text').innerText = "Belum ada aktivitas terbaru (menunggu server).";
       }
     }
     setInterval(cekStatus, 4000);
