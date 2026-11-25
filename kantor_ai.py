@@ -1,4 +1,4 @@
-import os, json, subprocess, time, requests, re
+import os, json, subprocess, time, requests, re, traceback
 from datetime import datetime, timezone, timedelta
 from google import genai
 
@@ -17,7 +17,8 @@ def update_visual(tahap, pesan):
     subprocess.run(["git", "push"])
 
 def kirim_teks(teks):
-    requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", data={"chat_id": TG_CHAT_ID, "text": teks})
+    if TG_TOKEN and TG_CHAT_ID:
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", data={"chat_id": TG_CHAT_ID, "text": teks})
 
 def kirim_video(video_path, caption):
     with open(video_path, "rb") as vf:
@@ -43,54 +44,63 @@ def cek_perintah_telegram():
         requests.get(f"{url}?offset={update_id_terakhir + 1}")
     return pesan_terbaru
 
-update_visual("RISET", "Agen Riset memeriksa perintah terbaru di chat Telegram...")
-perintah_tg = cek_perintah_telegram()
+tahap_sekarang = "RISET"
 
-if perintah_tg:
-    with open("syarat_harian.txt", "w") as f:
-        f.write(perintah_tg)
-    syarat = perintah_tg
-    kirim_teks("✅ Perintah baru dari Telegram diterima! Tim Kantor AI mulai memproses video...")
-else:
-    with open("syarat_harian.txt", "r") as f:
-        syarat = f.read()
+try:
+    update_visual("RISET", "Agen Riset memeriksa perintah terbaru di chat Telegram...")
+    perintah_tg = cek_perintah_telegram()
 
-if "http" not in syarat or "ISI_LINK" in syarat:
-    update_visual("IDLE", "Menunggu perintah & link YouTube dikirim lewat chat Telegram...")
-    exit(0)
+    if perintah_tg:
+        with open("syarat_harian.txt", "w") as f:
+            f.write(perintah_tg)
+        syarat = perintah_tg
+        kirim_teks("✅ Perintah baru dari Telegram diterima! Tim Kantor AI mulai memproses video...")
+    else:
+        with open("syarat_harian.txt", "r") as f:
+            syarat = f.read()
 
-urls = re.findall(r'(https?://[^\s]+)', syarat)
-if not urls:
-    update_visual("IDLE", "Link YouTube tidak ditemukan di pesan Telegram.")
-    exit(0)
-link_yt = urls[0]
+    if "http" not in syarat or "ISI_LINK" in syarat:
+        update_visual("IDLE", "Menunggu perintah & link video dikirim lewat chat Telegram...")
+        exit(0)
 
-update_visual("PRODUKSI", "Agen Clipper sedang mengunduh video materi...")
-os.makedirs("output_klip", exist_ok=True)
+    urls = re.findall(r'(https?://[^\s]+)', syarat)
+    if not urls:
+        update_visual("IDLE", "Link video tidak ditemukan di pesan Telegram.")
+        exit(0)
+    link_video = urls[0]
 
-yt_cookies = os.environ.get("YT_COOKIES", "").strip()
-yt_cmd = [
-    "yt-dlp",
-    "--js-runtimes", "node",
-    "--extractor-args", "youtube:player_client=tv,mweb",
-    "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-    "--merge-output-format", "mp4",
-    "-o", "source_video.mp4"
-]
-if yt_cookies:
-    with open("cookies.txt", "w") as cf:
-        cf.write(yt_cookies)
-    yt_cmd.extend(["--cookies", "cookies.txt"])
-yt_cmd.append(link_yt)
-subprocess.run(yt_cmd, check=True)
+    tahap_sekarang = "PRODUKSI"
+    update_visual("PRODUKSI", "Agen Clipper sedang mengunduh video materi...")
+    os.makedirs("output_klip", exist_ok=True)
 
-update_visual("QC", "Agen QC memeriksa durasi, larangan, & syarat Konten.com...")
-video_file = client.files.upload(file="source_video.mp4")
-while video_file.state.name == "PROCESSING":
-    time.sleep(5)
-    video_file = client.files.get(name=video_file.name)
+    yt_cookies = os.environ.get("YT_COOKIES", "").strip()
+    yt_cmd = [
+        "yt-dlp",
+        "--js-runtimes", "node",
+        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "--merge-output-format", "mp4",
+        "-o", "source_video.mp4"
+    ]
+    if yt_cookies and ("youtube.com" in link_video or "youtu.be" in link_video):
+        with open("cookies.txt", "w") as cf:
+            cf.write(yt_cookies)
+        yt_cmd.extend(["--cookies", "cookies.txt"])
+    yt_cmd.append(link_video)
 
-prompt = f"""
+    hasil_unduh = subprocess.run(yt_cmd, capture_output=True, text=True)
+    if hasil_unduh.returncode != 0:
+        baris_err = [b for b in hasil_unduh.stderr.splitlines() if "ERROR:" in b]
+        detail_err = baris_err[-1] if baris_err else hasil_unduh.stderr[-250:]
+        raise RuntimeError(f"Gagal mengunduh video: {detail_err}")
+
+    tahap_sekarang = "QC"
+    update_visual("QC", "Agen QC memeriksa durasi, larangan, & syarat Konten.com...")
+    video_file = client.files.upload(file="source_video.mp4")
+    while video_file.state.name == "PROCESSING":
+        time.sleep(5)
+        video_file = client.files.get(name=video_file.name)
+
+    prompt = f"""
 Kamu adalah Tim Riset, Produksi, dan Quality Control (QC) Kantor AI Clipper untuk platform Konten.com.
 Berikut instruksi & syarat campaign harian yang dikirim bos lewat Telegram:
 {syarat}
@@ -110,38 +120,46 @@ Berikan jawaban HANYA dalam format JSON array valid tanpa teks tambahan:
 ]
 """
 
-response = client.models.generate_content(model="gemini-2.5-flash", contents=[video_file, prompt])
-raw_json = response.text.strip().removeprefix("```json").removesuffix("```").strip()
-klip_list = json.loads(raw_json)
+    response = client.models.generate_content(model="gemini-2.5-flash", contents=[video_file, prompt])
+    raw_json = response.text.strip().removeprefix("```json").removesuffix("```").strip()
+    klip_list = json.loads(raw_json)
 
-for idx, klip in enumerate(klip_list, 1):
-    raw_cut = f"temp_{idx}.mp4"
-    out_mp4 = f"output_klip/{idx}_{klip['judul']}.mp4"
-    
-    subprocess.run([
-        "ffmpeg", "-y", "-i", "source_video.mp4",
-        "-ss", klip["mulai"], "-to", klip["selesai"],
-        "-vf", "crop=ih*(9/16):ih,scale=1080:1920",
-        "-c:v", "libx264", "-c:a", "aac", raw_cut
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    subprocess.run(["whisper", raw_cut, "--model", "base", "--language", "Indonesian", "--output_format", "srt"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    srt_file = f"temp_{idx}.srt"
-    if os.path.exists(srt_file):
+    tahap_sekarang = "POSTING"
+    for idx, klip in enumerate(klip_list, 1):
+        raw_cut = f"temp_{idx}.mp4"
+        out_mp4 = f"output_klip/{idx}_{klip['judul']}.mp4"
+        
         subprocess.run([
-            "ffmpeg", "-y", "-i", raw_cut,
-            "-vf", f"subtitles={srt_file}:force_style='FontSize=14,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Alignment=2,MarginV=50'",
-            "-c:a", "copy", out_mp4
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        os.remove(srt_file)
-    else:
-        os.rename(raw_cut, out_mp4)
+            "ffmpeg", "-y", "-i", "source_video.mp4",
+            "-ss", klip["mulai"], "-to", klip["selesai"],
+            "-vf", "crop=ih*(9/16):ih,scale=1080:1920",
+            "-c:v", "libx264", "-c:a", "aac", raw_cut
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
-    if os.path.exists(raw_cut):
-        os.remove(raw_cut)
+        subprocess.run(["whisper", raw_cut, "--model", "base", "--language", "Indonesian", "--output_format", "srt"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        srt_file = f"temp_{idx}.srt"
+        if os.path.exists(srt_file):
+            subprocess.run([
+                "ffmpeg", "-y", "-i", raw_cut,
+                "-vf", f"subtitles={srt_file}:force_style='FontSize=14,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Alignment=2,MarginV=50'",
+                "-c:a", "copy", out_mp4
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            os.remove(srt_file)
+        else:
+            os.rename(raw_cut, out_mp4)
 
-    update_visual("POSTING", f"Agen Kurir mengirim klip {idx} lolos QC ke Telegram...")
-    kirim_video(out_mp4, klip["caption_ig"])
+        if os.path.exists(raw_cut):
+            os.remove(raw_cut)
 
-update_visual("IDLE", "Selesai! Semua klip sudah dikirim ke Telegram. Agen kembali istirahat.")
+        update_visual("POSTING", f"Agen Kurir mengirim klip {idx} lolos QC ke Telegram...")
+        kirim_video(out_mp4, klip["caption_ig"])
+
+    update_visual("IDLE", "Selesai! Semua klip sudah dikirim ke Telegram. Agen kembali istirahat.")
+
+except Exception as e:
+    ringkasan_error = str(e).strip()[:300]
+    pesan_visual = f"GAGAL di tahap {tahap_sekarang}: {ringkasan_error}"
+    update_visual("ERROR", pesan_visual)
+    kirim_teks(f"❌ PROSES KANTOR AI GAGAL!\n\n📍 Tahap: {tahap_sekarang}\n⚠️ Penyebab:\n{ringkasan_error}\n\nCek tampilan web atau perbaiki sumber video lalu kirim ulang link.")
+    raise
