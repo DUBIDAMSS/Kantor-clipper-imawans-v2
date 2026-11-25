@@ -77,7 +77,7 @@ try:
 
     if "drive.google.com" in link_video:
         hasil_unduh = subprocess.run(
-            ["gdown", "--fuzzy", link_video, "-O", "source_video.mp4"],
+            ["gdown", link_video, "-O", "source_video.mp4"],
             capture_output=True, text=True
         )
         if hasil_unduh.returncode != 0 or not os.path.exists("source_video.mp4"):
