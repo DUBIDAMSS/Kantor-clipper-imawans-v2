@@ -130,7 +130,28 @@ Berikan jawaban HANYA dalam format JSON array valid tanpa teks tambahan:
 ]
 """
 
-    response = client.models.generate_content(model="gemini-3-flash", contents=[video_file, prompt])
+    model_kandidat = [
+        m.name.replace("models/", "")
+        for m in client.models.list()
+        if "generateContent" in (m.supported_actions or []) and "gemini" in m.name
+    ]
+    prioritas = ["gemini-3-flash-preview", "gemini-3-flash", "gemini-2.5-flash-preview", "gemini-2.5-pro", "gemini-2.0-flash"]
+    urutan_uji = [p for p in prioritas if p in model_kandidat] + [m for m in model_kandidat if m not in prioritas]
+
+    response = None
+    error_terakhir = None
+    for nama_model in urutan_uji:
+        try:
+            print(f"Mencoba model AI: {nama_model}")
+            response = client.models.generate_content(model=nama_model, contents=[video_file, prompt])
+            if response and response.text:
+                break
+        except Exception as err_m:
+            error_terakhir = err_m
+            continue
+
+    if not response or not response.text:
+        raise RuntimeError(f"Semua model Gemini gagal diakses: {error_terakhir}")
     raw_json = response.text.strip().removeprefix("```json").removesuffix("```").strip()
     klip_list = json.loads(raw_json)
 
