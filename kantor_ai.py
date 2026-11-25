@@ -130,7 +130,7 @@ Berikan jawaban HANYA dalam format JSON array valid tanpa teks tambahan:
 ]
 """
 
-    response = client.models.generate_content(model="gemini-2.5-flash", contents=[video_file, prompt])
+    response = client.models.generate_content(model="gemini-3-flash", contents=[video_file, prompt])
     raw_json = response.text.strip().removeprefix("```json").removesuffix("```").strip()
     klip_list = json.loads(raw_json)
 
