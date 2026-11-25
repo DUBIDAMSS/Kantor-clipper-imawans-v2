@@ -1,1 +1,1 @@
-{"tahap": "ERROR", "pesan": "GAGAL di tahap QC: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/g", "waktu": "11:38 WITA"}
+{"tahap": "RISET", "pesan": "Agen Riset memeriksa perintah terbaru di chat Telegram...", "waktu": "11:47 WITA"}
