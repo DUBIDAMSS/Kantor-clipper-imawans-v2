@@ -28,7 +28,7 @@ jobs:
       - name: Instal FFmpeg & AI Tools
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install -U google-genai "yt-dlp[default]" gdown openai-whisper requests
+          pip install -U google-genai "yt-dlp[default]" gdown openai-whisper requests opencv-python-headless mediapipe
           
       - name: Jalankan Kantor AI
         env:
