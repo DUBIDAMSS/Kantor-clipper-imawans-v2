@@ -1,1 +1,1 @@
-{"tahap": "PRODUKSI", "pesan": "Agen Clipper merender zoom pembicara aktif klip 1...", "waktu": "19:16 WITA"}
+{"tahap": "ERROR", "pesan": "GAGAL di tahap POSTING: module 'mediapipe' has no attribute 'solutions'", "waktu": "19:17 WITA"}
